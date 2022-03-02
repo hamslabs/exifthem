@@ -87,17 +87,23 @@ def main(args) -> None:
 
 									latMinutes, latDegrees = math.modf(latitude.value)
 									exifDict['GPS'][piexif.GPSIFD.GPSLatitudeRef] =  'N'
-									exifDict['GPS'][piexif.GPSIFD.GPSLatitude] = ((int(latDegrees),1), (int(latMinutes * 60 * 1000000),1000000), (0,1))
+									exifDict['GPS'][piexif.GPSIFD.GPSLatitude] = ((int(latDegrees),1),
+											(int(latMinutes * 60 * 1000000),1000000), (0,1))
 									
 									longMinutes, longDegrees = math.modf(math.fabs(longitude.value))
 									exifDict['GPS'][piexif.GPSIFD.GPSLongitudeRef] =  'W'
-									exifDict['GPS'][piexif.GPSIFD.GPSLongitude] = ((int(longDegrees),1), (int(longMinutes * 60 * 1000000),1000000), (0,1))
+									exifDict['GPS'][piexif.GPSIFD.GPSLongitude] = ((int(longDegrees),1),
+											(int(longMinutes * 60 * 1000000),1000000), (0,1))
 
 							exifBytes = piexif.dump(exifDict)
-							img.save('_' + fileName, 'jpeg', exif=exifBytes)
+							tmpName = '__tmp_' + fileName
+							img.save(tmpName, exif=exifBytes, quality=75)
 
 					except Exception as error:
 						print(error)
+
+					if not args.keep:
+						os.replace(tmpName, fileName)
 
 	except Exception as error:
 		print(error)
@@ -120,8 +126,10 @@ def main(args) -> None:
 
 
 if __name__ == '__main__':
-	parser = argparse.ArgumentParser(description='Process some integers.')
-	parser.add_argument('filename', metavar='filenames', type=str, help='some files to process')
+	parser = argparse.ArgumentParser(description='Add EXIF tags for images based on metadata file')
+	parser.add_argument('filename', type=str, help='metadata file for images')
+	parser.add_argument('--keep', action='store_true', help='keep original and create temp files')
+
 
 	args = parser.parse_args()
 
@@ -129,3 +137,4 @@ if __name__ == '__main__':
 	
 
 	main(args)
+
