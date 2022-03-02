@@ -43,7 +43,7 @@ def main(args) -> None:
 							exifDict = piexif.load(img.info['exif'])
 
 
-							eifDict['Exif'][piexif.ExifIFD.ISOSpeed] =  ISOSpeed.value
+							exifDict['Exif'][piexif.ExifIFD.ISOSpeed] =  ISOSpeed.value
 	
 							while line := f.readline().strip():		# 0x829a
 								if line.startswith('Shutter:'):
