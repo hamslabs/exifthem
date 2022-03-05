@@ -22,6 +22,7 @@ metaFilename = 'Metadata Source File.txt'
 
 def main(args) -> None:
 
+	print(Image.registered_extensions())
 
 	try:
 		with open(args.filename) as f:
@@ -35,7 +36,8 @@ def main(args) -> None:
 				if line.startswith(' [Frame'):
 					frameNum = c_int()
 					libc.sscanf(line.encode('utf-8'), b' [Frame %d', byref(frameNum))
-					fileNames = glob.glob('*{:04d}.*'.format(frameNum.value))
+					fileNames = glob.glob('*{:03d}.*'.format(frameNum.value))
+					print (fileNames)
 					fileName = fileNames[0]
 					
 					try:
@@ -100,12 +102,15 @@ def main(args) -> None:
 							img.save(tmpName, exif=exifBytes, quality=75)
 
 					except Exception as error:
+						print("XXXXX")
 						print(error)
 
+					print(tmpName + ' ' + fileName)
 					if not args.keep:
 						os.replace(tmpName, fileName)
 
 	except Exception as error:
+		print("ZZZZZ")
 		print(error)
 
 
