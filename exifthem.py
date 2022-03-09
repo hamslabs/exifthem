@@ -89,7 +89,9 @@ def main(args) -> None:
 									byref(latitude), byref(longitude), byref(radius))
 
 							commandLineList.append(('-latitude=' + str(latitude.value)))
+							commandLineList.append(('-exif:gpslatitude=' + str(latitude.value)))
 							commandLineList.append(('-longitude=' + str(longitude.value)))
+							commandLineList.append(('-exif:gpslongitude=' + str(longitude.value)))
 
 					tmpName = '_tmp_' + fileName
 					commandLineList.extend(['-q', '-o', tmpName , fileName ])
