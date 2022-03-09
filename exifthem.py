@@ -5,9 +5,10 @@ import glob
 import argparse
 from datetime import datetime
 import math
-import piexif
-from PIL import Image
-from PIL.ExifTags import TAGS
+import json
+import subprocess
+
+
 
 from ctypes import *
 from ctypes.util import find_library
@@ -21,9 +22,6 @@ metaFilename = 'Metadata Source File.txt'
 
 
 def main(args) -> None:
-
-	print(Image.registered_extensions())
-
 	try:
 		with open(args.filename) as f:
 			while line := f.readline():
@@ -37,97 +35,74 @@ def main(args) -> None:
 					frameNum = c_int()
 					libc.sscanf(line.encode('utf-8'), b' [Frame %d', byref(frameNum))
 					fileNames = glob.glob('*{:03d}.*'.format(frameNum.value))
-					print (fileNames)
 					fileName = fileNames[0]
 					
-					try:
-						with Image.open(fileName) as img:
-							exifDict = piexif.load(img.info['exif'])
-
-
-							exifDict['Exif'][piexif.ExifIFD.ISOSpeed] =  ISOSpeed.value
+					(name, ext) = os.path.splitext(fileName)
+					if 1:
+						commandLineList = ['exiftool']
+						commandLineList.append(('-isospeed=' + str(ISOSpeed.value)))
 	
-							while line := f.readline().strip():		# 0x829a
-								if line.startswith('Shutter:'):
-									numerator = c_int()
-									denominator = c_int()
-									libc.sscanf(line.encode('utf-8'), b'Shutter: %d/%d', byref(numerator), byref(denominator))
-									exifDict['Exif'][piexif.ImageIFD.ExposureTime] =  (numerator.value, denominator.value)
-			
-								if line.startswith('Aperture:'):	# 0x829d
-									aperture = c_float()
-									libc.sscanf(line.encode('utf-8'), b'Aperture: f/%f', byref(aperture))
-									fstop = round(aperture.value, 1)
-									exifDict['Exif'][piexif.ExifIFD.FNumber] =  (int(fstop*10), 10)
-			
-								# 2021:02:04 16:42:32
+					while line := f.readline().strip():		# 0x829a
+						if line.startswith('Shutter:'):
+							numerator = c_int()
+							denominator = c_int()
+							libc.sscanf(line.encode('utf-8'), b'Shutter: %d/%d', byref(numerator), byref(denominator))
+							if denominator.value == 0:
+								 denominator.value = 1
 
-								if line.startswith('When taken:'):	# 0x0132 0x9003 0x9004
-									dateBuffer = create_string_buffer(b'\000' * 32)
-									libc.sscanf(line.encode('utf-8'), b'When taken: %[^\n]', dateBuffer)
-									dateString = dateBuffer.value.decode('utf-8')
-									ISODateTime = datetime.strptime(dateString, '%B %d, %Y')
-									EXIFDateTime = ISODateTime.strftime('%Y:%m:%d %H:%M:%S')
+							commandLineList.append(('-exposuretime=' + str(float(numerator.value) / float(denominator.value))))
 
-									exifDict['0th'][piexif.ImageIFD.DateTime] =  EXIFDateTime 
-									exifDict['Exif'][piexif.ExifIFD.DateTimeOriginal] =  EXIFDateTime
-									exifDict['Exif'][piexif.ExifIFD.DateTimeDigitized] =  EXIFDateTime
+	
+						if line.startswith('Aperture:'):	# 0x829d
+							aperture = c_float()
+							libc.sscanf(line.encode('utf-8'), b'Aperture: f/%f', byref(aperture))
+							fstop = round(aperture.value, 1)
 
-			
-								if line.startswith('Notes:'):
-									notesBuffer = create_string_buffer(b'\000' * 128)
-									libc.sscanf(line.encode('utf-8'), b'Notes: %[^\n]', notesBuffer)
-									notesString = notesBuffer.value.decode('utf-8')
-									exifDict['Exif'][piexif.ExifIFD.UserComment] =  notesString.encode('utf-8')
-			
-								if line.startswith('Location:'):	# 0x8825
-									latitude = c_float()
-									longitude = c_float()
-									radius = c_int()
-									libc.sscanf(line.encode('utf-8'), b'Location: [Latitude: %f Longitude: %f Radius: %d',
-											byref(latitude), byref(longitude), byref(radius))
+							commandLineList.append(('-fnumber=' + str(int(fstop*10)) + '/10'))
+	
+						# 2021:02:04 16:42:32
 
-									latMinutes, latDegrees = math.modf(latitude.value)
-									exifDict['GPS'][piexif.GPSIFD.GPSLatitudeRef] =  'N'
-									exifDict['GPS'][piexif.GPSIFD.GPSLatitude] = ((int(latDegrees),1),
-											(int(latMinutes * 60 * 1000000),1000000), (0,1))
-									
-									longMinutes, longDegrees = math.modf(math.fabs(longitude.value))
-									exifDict['GPS'][piexif.GPSIFD.GPSLongitudeRef] =  'W'
-									exifDict['GPS'][piexif.GPSIFD.GPSLongitude] = ((int(longDegrees),1),
-											(int(longMinutes * 60 * 1000000),1000000), (0,1))
+						if line.startswith('When taken:'):	# 0x0132 0x9003 0x9004
+							dateBuffer = create_string_buffer(b'\000' * 32)
+							libc.sscanf(line.encode('utf-8'), b'When taken: %[^\n]', dateBuffer)
+							dateString = dateBuffer.value.decode('utf-8')
+							ISODateTime = datetime.strptime(dateString, '%B %d, %Y')
+							EXIFDateTime = ISODateTime.strftime('"%Y:%m:%d %H:%M:%S"')
 
-							exifBytes = piexif.dump(exifDict)
-							tmpName = '__tmp_' + fileName
-							img.save(tmpName, exif=exifBytes, quality=75)
+							commandLineList.append(('-datetime=' + EXIFDateTime))
+							commandLineList.append(('-datetimeoriginal=' + EXIFDateTime))
+							commandLineList.append(('-datetimedigitized=' + EXIFDateTime))
 
-					except Exception as error:
-						print("XXXXX")
-						print(error)
+	
+						if line.startswith('Notes:'):
+							notesBuffer = create_string_buffer(b'\000' * 128)
+							libc.sscanf(line.encode('utf-8'), b'Notes: %[^\n]', notesBuffer)
+							notesString = notesBuffer.value.decode('utf-8')
 
-					print(tmpName + ' ' + fileName)
+							commandLineList.append(('-usercomment=' + '"' + notesString + '"'))
+	
+						if line.startswith('Location:'):	# 0x8825
+							latitude = c_float()
+							longitude = c_float()
+							radius = c_int()
+							libc.sscanf(line.encode('utf-8'), b'Location: [Latitude: %f Longitude: %f Radius: %d',
+									byref(latitude), byref(longitude), byref(radius))
+
+							commandLineList.append(('-latitude=' + str(latitude.value)))
+							commandLineList.append(('-longitude=' + str(longitude.value)))
+
+					tmpName = '_tmp_' + fileName
+					commandLineList.extend(['-q', '-o', tmpName , fileName ])
+					#print(commandLineList)
+
+					subprocess.run(commandLineList)
+					
 					if not args.keep:
 						os.replace(tmpName, fileName)
 
 	except Exception as error:
-		print("ZZZZZ")
 		print(error)
-
-
-'''		
-	for filename in args.filenames:
-		image = Image.open(filename)
-		exifdata = image.getexif()
-		print (exifdata)
-		for tag_id in exifdata:
-			# get the tag name, instead of human unreadable tag id
-			tag = TAGS.get(tag_id, tag_id)
-			data = exifdata.get(tag_id)
-			# decode bytes
-			if isinstance(data, bytes):
-				data = data.decode()
-			print(f"{tag:25}: {data}")
-'''
+		raise
 
 
 if __name__ == '__main__':
@@ -135,11 +110,7 @@ if __name__ == '__main__':
 	parser.add_argument('filename', type=str, help='metadata file for images')
 	parser.add_argument('--keep', action='store_true', help='keep original and create temp files')
 
-
 	args = parser.parse_args()
-
-#	print(glob.glob("*0001.*"))
-	
 
 	main(args)
 
