@@ -79,8 +79,7 @@ def main(args) -> None:
 							libc.sscanf(line.encode('utf-8'), b'Notes: %[^\n]', notesBuffer)
 							notesString = notesBuffer.value.decode('utf-8')
 
-							if notesString:
-								commandLineList.append(('-usercomment=' + '"' + notesString + '"'))
+							commandLineList.append(('-usercomment=' + '"' + notesString + '"'))
 	
 						if line.startswith('Location:'):	# 0x8825
 							latitude = c_float()
