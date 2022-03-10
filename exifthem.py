@@ -90,8 +90,10 @@ def main(args) -> None:
 
 							commandLineList.append(('-latitude=' + str(latitude.value)))
 							commandLineList.append(('-exif:gpslatitude=' + str(latitude.value)))
+							commandLineList.append(('-exif:gpslatituderef=' + ((latitude.value > 0) and "N" or "S")))
 							commandLineList.append(('-longitude=' + str(longitude.value)))
 							commandLineList.append(('-exif:gpslongitude=' + str(longitude.value)))
+							commandLineList.append(('-exif:gpslongituderef=' + ((longitude.value > 0) and "E" or "W")))
 
 					tmpName = '_tmp_' + fileName
 					commandLineList.extend(['-q', '-o', tmpName , fileName ])
